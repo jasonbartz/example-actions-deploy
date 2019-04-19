@@ -1,6 +1,6 @@
 workflow "Build & Deploy" {
   on = "push"
-  resolves = ["Push Image to ECR]
+  resolves = ["Push Image to ECR"]
 }
 
 action "Build" {
@@ -16,7 +16,7 @@ action "Docker Fetch ECR" {
 }
 
 action "Push Image to ECR" {
-  needs = ["Docker Login ECR"]
+  needs = ["Docker Fetch ECR"]
   uses = "actions/docker/cli@8cdf801b322af5f369e00d85e9cf3a7122f49108"
   args = "push jasonbartz/example-actions-deploy"
 }
