@@ -1,6 +1,6 @@
 workflow "Build & Deploy" {
   on = "push"
-  resolves = ["Push Image to ECR"]
+  resolves = ["Push Image to ECR SHA", "Push Image to ECR Latest"]
 }
 
 action "Build" {
@@ -15,15 +15,26 @@ action "Docker Fetch ECR" {
   secrets = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
 }
 
-action "Docker Tag for ECR" {
+action "Docker Tag for ECR SHA" {
+  needs = ["Docker Fetch ECR"]
+  uses = "actions/docker/cli@8cdf801b322af5f369e00d85e9cf3a7122f49108"
+  args = "tag jasonbartz/example-actions-deploy 936848799764.dkr.ecr.us-east-1.amazonaws.com/example-github-actions:$GITHUB_SHA"
+}
+
+action "Push Image to ECR SHA" {
+  needs = ["Docker Tag for ECR SHA"]
+  uses = "actions/docker/cli@8cdf801b322af5f369e00d85e9cf3a7122f49108"
+  args = "push 936848799764.dkr.ecr.us-east-1.amazonaws.com/example-github-actions:$GITHUB_SHA"
+}
+
+action "Docker Tag for ECR Latest" {
   needs = ["Docker Fetch ECR"]
   uses = "actions/docker/cli@8cdf801b322af5f369e00d85e9cf3a7122f49108"
   args = "tag jasonbartz/example-actions-deploy 936848799764.dkr.ecr.us-east-1.amazonaws.com/example-github-actions:latest"
 }
 
-
-action "Push Image to ECR" {
-  needs = ["Docker Tag for ECR"]
+action "Push Image to ECR Latest" {
+  needs = ["Docker Tag for ECR Latest"]
   uses = "actions/docker/cli@8cdf801b322af5f369e00d85e9cf3a7122f49108"
   args = "push 936848799764.dkr.ecr.us-east-1.amazonaws.com/example-github-actions:latest"
 }
