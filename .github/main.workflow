@@ -1,6 +1,6 @@
 workflow "Build & Deploy" {
   on = "push"
-  resolves = ["Docker Registry"]
+  resolves = ["Docker Login ECR"]
 }
 
 action "Build" {
@@ -12,4 +12,5 @@ action "Docker Login ECR" {
   uses = "actions/aws/cli@efb074ae4510f2d12c7801e4461b65bf5e8317e6"
   args = "$(aws ecr get-login)"
   needs = ["Build"]
+  secrets = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
 }
