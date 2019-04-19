@@ -15,8 +15,15 @@ action "Docker Fetch ECR" {
   secrets = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
 }
 
-action "Push Image to ECR" {
+action "Docker Tag for ECR" {
   needs = ["Docker Fetch ECR"]
   uses = "actions/docker/cli@8cdf801b322af5f369e00d85e9cf3a7122f49108"
-  args = "push jasonbartz/example-actions-deploy"
+  args = "tag jasonbartz/example-actions-deploy 936848799764.dkr.ecr.us-east-1.amazonaws.com/example-github-actions:latest"
+}
+
+
+action "Push Image to ECR" {
+  needs = ["Docker Tag for ECR"]
+  uses = "actions/docker/cli@8cdf801b322af5f369e00d85e9cf3a7122f49108"
+  args = "push 936848799764.dkr.ecr.us-east-1.amazonaws.com/example-github-actions:latest"
 }
