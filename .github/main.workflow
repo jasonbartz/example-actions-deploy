@@ -11,7 +11,7 @@ action "Build" {
 action "Docker Fetch ECR" {
   needs = ["Build"]
   uses = "actions/aws/cli@efb074ae4510f2d12c7801e4461b65bf5e8317e6"
-  args = "ecr get-login > loginscript && chmod +x loginscript && ./loginscript"
+  args = "ecr get-login --no-include-email > loginscript && chmod +x loginscript && ./loginscript"
   secrets = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
 }
 
