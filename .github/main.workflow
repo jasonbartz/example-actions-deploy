@@ -42,7 +42,7 @@ action "Push Image to ECR Latest" {
 action "Deploy App" {
   needs = ["Push Image to ECR SHA"]
   uses = "actions/aws/cli@efb074ae4510f2d12c7801e4461b65bf5e8317e6"
-  args = "cloudformation create-stack --stack-name example-actions-deploy --template-body file://cfn/service.yml --parameters \"ParameterKey=ClusterName,ParameterValue=refresh-demo-cluster-dev-us ParameterKey=ImageVersion,ParameterValue=$GITHUB_SHA ParameterKey=AppName,ParameterValue=example-github-actions ParameterKey=Environment,ParameterValue=dev\" --capabilities CAPABILITY_NAMED_IAM"
+  args = "cloudformation create-stack --stack-name example-github-actions --template-body file://cfn/service.yml --parameters \"ParameterKey=ClusterName,ParameterValue=refresh-demo-cluster-dev-us ParameterKey=ImageVersion,ParameterValue=$GITHUB_SHA ParameterKey=AppName,ParameterValue=example-github-actions ParameterKey=Environment,ParameterValue=dev\" --capabilities CAPABILITY_NAMED_IAM"
   secrets = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
 }
 
