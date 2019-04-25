@@ -1,6 +1,6 @@
 workflow "Build & Deploy" {
   on = "push"
-  resolves = ["Push Image to ECR SHA", "Push Image to ECR Latest"]
+  resolves = ["Deploy App", "Push Image to ECR Latest"]
 }
 
 action "Build" {
@@ -38,3 +38,11 @@ action "Push Image to ECR Latest" {
   uses = "actions/docker/cli@8cdf801b322af5f369e00d85e9cf3a7122f49108"
   args = "push 936848799764.dkr.ecr.us-east-1.amazonaws.com/example-github-actions:latest"
 }
+
+action "Deploy App" {
+  needs = ["Push Image to ECR SHA"]
+  uses = "actions/aws/cli@efb074ae4510f2d12c7801e4461b65bf5e8317e6"
+  args = "cloudformation create-stack --stack-name example-actions-deploy --template-body fileb://cfn/service.yml --parameters \"ClusterName=refresh-demo-cluster-dev-us,ImageVersion=$GITHUB_SHA,AppName=example-github-actions,Environment=dev\" --capabilities CAPABILITY_NAMED_IAM"
+  secrets = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+}
+

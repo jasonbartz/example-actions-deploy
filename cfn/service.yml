@@ -1,0 +1,175 @@
+Description: >
+    This template deploys a pair of example ECS services from containers published in
+    Amazon EC2 Container Registry (Amazon ECR).
+
+
+Parameters:
+
+    ClusterName:
+        Description: the name of the cluster to host the service (should be something like 'trident-prod' not 'trident-prod-cluster')
+        Type: String
+
+    ImageVersion:
+        Description: Version to deploy
+        Type: String
+
+    AppName:
+        Description: Name of the app, for ECR Image
+        Type: String
+
+    Environment:
+        Description: Name of the env
+        Type: String
+
+
+Resources:
+
+
+    # This security group defines who/where is allowed to access the Application Load Balancer.
+    # We've opened this up to the public internet (0.0.0.0/0)
+    LoadBalancerSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            VpcId:
+                Fn::ImportValue: !Sub "vpc-${Environment}-VpcId"
+            GroupDescription: Access to the load balancer that sits in front of ECS
+            SecurityGroupIngress:
+                # Allow access from anywhere to our ECS services
+                - CidrIp: 0.0.0.0/0
+                  IpProtocol: tcp
+                  FromPort: 80
+                  ToPort: 80
+                - CidrIp: 0.0.0.0/0
+                  IpProtocol: tcp
+                  FromPort: 443
+                  ToPort: 443
+
+    LoadBalancer:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+            Name: !Ref AWS::StackName
+
+            Subnets: !Split
+                - ","
+                - Fn::ImportValue: !Sub "vpc-${Environment}-PublicSubnetIds-Group0"
+            SecurityGroups:
+                - !Ref LoadBalancerSecurityGroup
+
+    LoadBalancerListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            LoadBalancerArn: !Ref LoadBalancer
+
+            Port: 80
+            Protocol: HTTP
+
+            DefaultActions:
+                - Type: forward
+                  TargetGroupArn: !Ref DefaultTargetGroup
+
+    DefaultTargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            Name: !Sub ${AWS::StackName}-default
+            VpcId:
+                Fn::ImportValue: !Sub "vpc-${Environment}-VpcId"
+            Port: 80
+            Protocol: HTTP
+            Matcher:
+                HttpCode: 200-299
+            HealthCheckPath: /
+            HealthCheckIntervalSeconds: 10
+            HealthyThresholdCount: 2
+            UnhealthyThresholdCount: 6
+            HealthCheckTimeoutSeconds: 5
+
+
+    ECSHostSecurityGroupIngress:
+        Type: AWS::EC2::SecurityGroupIngress
+        Properties:
+            Description: Rule to put in clusters security group to allow load balancer to reach ECS instances
+            SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+            IpProtocol: -1
+            GroupId:
+                Fn::ImportValue: !Sub "cluster-${ClusterName}-ECSHostSecurityGroup"
+
+    Service:
+        Type: AWS::ECS::Service
+        DependsOn: LoadBalancerListener
+        Properties:
+            Cluster: !Ref ClusterName
+            Role: !Ref ServiceRole
+            DesiredCount: 2
+            TaskDefinition: !Ref TaskDefinition
+            ServiceName: !Sub ${AppName}-${Environment}
+            LoadBalancers:
+                - ContainerName: !Sub "${AppName}"
+                  ContainerPort: 3000
+                  TargetGroupArn: !Ref DefaultTargetGroup
+
+
+    TaskDefinition:
+        Type: AWS::ECS::TaskDefinition
+        Properties:
+            Family: !Sub ${AppName}-${Environment}
+
+            ContainerDefinitions:
+                -
+                  Name: !Sub ${AppName}
+                  Essential: true
+                  Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AppName}:${ImageVersion}"
+                  MemoryReservation: 512
+                  PortMappings:
+                    - ContainerPort: 3000
+                  LogConfiguration:
+                    LogDriver: awslogs
+                    Options:
+                        awslogs-group: !Ref AWS::StackName
+                        awslogs-region: !Ref AWS::Region
+                        awslogs-stream-prefix: !Sub "${Environment}"
+                  ExtraHosts: [{'Hostname': 'statsd', 'IpAddress': '172.17.0.1'}]
+
+    CloudWatchLogsGroup:
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: !Ref AWS::StackName
+            RetentionInDays: 90
+
+    # This IAM Role grants the service access to register/unregister with the
+    # Application Load Balancer (ALB). It is based on the default documented here:
+    # http://docs.aws.amazon.com/AmazonECS/latest/developerguide/service_IAM_role.html
+    ServiceRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: !Sub ecs-service-${AWS::StackName}-${AWS::Region}
+            Path: /
+            AssumeRolePolicyDocument:
+                Statement:
+                - Action:
+                  - sts:AssumeRole
+                  Effect: Allow
+                  Principal:
+                    Service:
+                    - ecs.amazonaws.com
+
+            Policies:
+                - PolicyName: !Sub ecs-service-${AWS::StackName}-${AWS::Region}
+                  PolicyDocument:
+                      Version: '2012-10-17'
+                      Statement:
+                      - Action:
+                        - ec2:AuthorizeSecurityGroupIngress
+                        - ec2:Describe*
+                        - elasticloadbalancing:DeregisterInstancesFromLoadBalancer
+                        - elasticloadbalancing:Describe*
+                        - elasticloadbalancing:RegisterInstancesWithLoadBalancer
+                        - elasticloadbalancing:DeregisterTargets
+                        - elasticloadbalancing:DescribeTargetGroups
+                        - elasticloadbalancing:DescribeTargetHealth
+                        - elasticloadbalancing:RegisterTargets
+                        Resource: '*'
+                        Effect: Allow
+Outputs:
+    ServiceUrl:
+        Description: The URL endpoint for the service
+        Value: LoadBalancer.DNSName
